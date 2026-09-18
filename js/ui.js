@@ -1,18 +1,3 @@
-/**
- * ui.js
- * ---------------------------------------------------------------------------
- * Todo o desenho no <canvas> passa por aqui, e tudo passa primeiro pela
- * mesma pergunta: "existe uma imagem real carregada para esta chave?".
- * Se sim, desenha a imagem. Se não (placeholder), desenha um retângulo
- * colorido com o nome da chave escrito — assim dá pra jogar (e ver
- * exatamente o que falta substituir) mesmo sem nenhum asset seu ainda.
- *
- * As telas de texto (menu, fim de noite, game over) são <div> comuns em
- * HTML/CSS — é mais simples de estilizar e deixar acessível do que
- * desenhar texto de UI inteiro no canvas.
- * ---------------------------------------------------------------------------
- */
-
 const UI = {
   PLACEHOLDER_COLORS: {
     office: '#2b2f3a',
@@ -33,51 +18,82 @@ const UI = {
     ctx.fillText(label, x + w / 2, y + h / 2);
   },
 
-  /** Desenha assetKey (ex.: "cameras.cozinha") em (x,y,w,h), com fallback. */
-  drawAsset(ctx, assetLoader, assetKey, x, y, w, h, group) {
+  /** @param {boolean} jitter  aplica um leve tremor aleatório a cada frame */
+  drawAsset(ctx, assetLoader, assetKey, x, y, w, h, group, jitter = false) {
+    let dx = x;
+    let dy = y;
+    if (jitter) {
+      const j = window.GAME_CONSTANTS.JITTER_MAX_PX;
+      dx += Math.random() * j * 2 - j;
+      dy += Math.random() * j * 2 - j;
+    }
     const img = assetLoader.getImage(assetKey);
     if (img) {
-      ctx.drawImage(img, x, y, w, h);
+      ctx.drawImage(img, dx, dy, w, h);
     } else {
-      this.drawPlaceholder(ctx, x, y, w, h, assetKey, group);
+      this.drawPlaceholder(ctx, dx, dy, w, h, assetKey, group);
     }
   },
 
+  drawLightingOverlay(ctx, w, h) {
+    const gradient = ctx.createRadialGradient(w * 0.92, h * 0.05, 0, w * 0.92, h * 0.05, w * 0.8);
+    gradient.addColorStop(0, 'rgba(255, 214, 140, 0.35)');
+    gradient.addColorStop(1, 'rgba(255, 214, 140, 0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, w, h);
+  },
+
+  /** Ruído estilo fita VHS: riscos translúcidos + uma linha de tracking ocasional. */
+  drawStaticNoise(ctx, w, h, density) {
+    ctx.save();
+    for (let i = 0; i < density; i += 1) {
+      const x = Math.random() * w;
+      const y = Math.random() * h;
+      const rw = Math.random() * 3 + 1;
+      const rh = Math.random() * 1.5 + 0.5;
+      ctx.fillStyle = `rgba(255,255,255,${(Math.random() * 0.12).toFixed(3)})`;
+      ctx.fillRect(x, y, rw, rh);
+    }
+    if (Math.random() < 0.05) {
+      const ly = Math.random() * h;
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(0, ly, w, 2);
+    }
+    ctx.restore();
+  },
+
   // -------------------------------------------------------------------
-  // TELA: ESCRITÓRIO (visão padrão do jogador)
+  // TELA: ESCRITÓRIO — panorama 180° com pan pelo mouse (game.cameraOffsetX)
   // -------------------------------------------------------------------
   renderOffice(ctx, canvas, assetLoader, game) {
     const { width: w, height: h } = canvas;
-    this.drawAsset(ctx, assetLoader, 'office.background', 0, 0, w, h, 'office');
+    const worldW = window.GAME_CONSTANTS.OFFICE_WORLD_WIDTH;
+    const offsetX = game.cameraOffsetX;
 
-    // Duas "janelas de porta" nas laterais, cada uma mostrando o inimigo
-    // SOMENTE se a luz daquela porta estiver acesa e ele estiver lá.
-    const doorW = w * 0.22;
-    const doorH = h * 0.5;
-    const doorY = h - doorH - 20;
-    const positions = { esquerda: 20, direita: w - doorW - 20 };
+    this.drawAsset(ctx, assetLoader, 'office.background', -offsetX, 0, worldW, h, 'office');
+
+    const doorW = w * 0.42;
+    const doorH = h * 0.62;
+    const doorY = h - doorH;
+    const doorWorldX = { esquerda: 10, direita: worldW - doorW - 10 };
 
     Object.values(game.doors).forEach((door) => {
-      const x = positions[door.id];
+      const x = doorWorldX[door.id] - offsetX;
+      if (x + doorW < 0 || x > w) return; // fora do campo de visão atual
+
       const enemyHere = game.enemies.getAtDoor(door.id);
       const revealed = enemyHere && enemyHere.isRevealedAtDoor(door.id, game.doors);
 
       if (revealed) {
-        this.drawAsset(
-          ctx, assetLoader, `enemies.${enemyHere.id}.naPorta`,
-          x, doorY, doorW, doorH, 'enemies',
-        );
+        this.drawAsset(ctx, assetLoader, `enemies.${enemyHere.id}.naPorta`, x, doorY, doorW, doorH, 'enemies', true);
       } else if (door.lightOn) {
-        // Luz acesa, ninguém lá: corredor vazio e iluminado.
         ctx.fillStyle = '#4b5563';
         ctx.fillRect(x, doorY, doorW, doorH);
       } else {
-        // Escuro / sem checagem.
         ctx.fillStyle = '#0b0d12';
         ctx.fillRect(x, doorY, doorW, doorH);
       }
 
-      // Moldura da porta: verde = fechada (segura), vermelha = aberta.
       ctx.lineWidth = 6;
       ctx.strokeStyle = door.isClosed ? '#22c55e' : '#ef4444';
       ctx.strokeRect(x, doorY, doorW, doorH);
@@ -88,8 +104,8 @@ const UI = {
       ctx.fillText(door.label.toUpperCase(), x + doorW / 2, doorY - 8);
     });
 
-    // Apagão: escurece a cena inteira e pisca um aviso — nada mais
-    // funciona a partir daqui (ver game.js -> _onBlackout).
+    this.drawLightingOverlay(ctx, w, h);
+
     if (game.power.isBlackedOut) {
       ctx.fillStyle = 'rgba(0,0,0,0.86)';
       ctx.fillRect(0, 0, w, h);
@@ -111,23 +127,17 @@ const UI = {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, w, h);
 
-    // Breve "ruído" ao trocar de câmera, antes de assentar na imagem do cômodo.
     if (game.cameras.isFlashingStatic(window.GAME_CONSTANTS.CAMERA_STATIC_FLASH_MS)) {
       this.drawAsset(ctx, assetLoader, 'cameras.static', 0, 0, w, h, 'cameras');
       return;
     }
 
-    this.drawAsset(ctx, assetLoader, `cameras.${roomId}`, 0, 0, w, h, 'cameras');
+    this.drawAsset(ctx, assetLoader, `cameras.${roomId}`, 0, 0, w, h, 'cameras', true);
 
-    // Inimigo(s) visível(is) nesse cômodo agora.
     game.enemies.getVisibleInRoom(roomId).forEach((enemy) => {
-      this.drawAsset(
-        ctx, assetLoader, `enemies.${enemy.id}.${roomId}`,
-        w * 0.3, h * 0.25, w * 0.4, h * 0.6, 'enemies',
-      );
+      this.drawAsset(ctx, assetLoader, `enemies.${enemy.id}.${roomId}`, w * 0.3, h * 0.25, w * 0.4, h * 0.6, 'enemies', true);
     });
 
-    // Moldura "modo câmera" + rótulo do cômodo.
     ctx.strokeStyle = '#22c55e';
     ctx.lineWidth = 4;
     ctx.strokeRect(4, 4, w - 8, h - 8);
@@ -149,7 +159,7 @@ const UI = {
   },
 
   // -------------------------------------------------------------------
-  // HUD (textos fora do canvas)
+  // HUD / DOM
   // -------------------------------------------------------------------
   updateHud({ powerPct, powerLow, clockLabel, nightLabel }) {
     const powerEl = document.getElementById('hud-power-value');

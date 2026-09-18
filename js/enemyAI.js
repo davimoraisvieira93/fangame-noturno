@@ -1,74 +1,55 @@
-/**
- * enemyAI.js
- * ---------------------------------------------------------------------------
- * Cada inimigo segue um "path" (definido em ENEMIES_CONFIG, config.js):
- * uma lista de cômodos terminando sempre em 'porta:<id>'.
- *
- * A cada AI_TICK_INTERVAL_MS (config.js), cada inimigo "rola um dado" de
- * 0 a 19. Se o resultado for menor que sua "aggression" da noite atual,
- * ele avança UM passo no path. Isso é o clássico esquema de "AI level"
- * do gênero: aggression 0 = praticamente parado; aggression 19+ = avança
- * quase a cada tick.
- *
- * Estados possíveis de um inimigo:
- *   'roaming'    -> em algum cômodo do path, visível pela câmera daquele
- *                   cômodo (ver isVisibleInRoom).
- *   'atDoor'     -> chegou na porta-alvo. Se a porta estiver ABERTA, um
- *                   cronômetro de ataque começa a contar (DOOR_ATTACK_GRACE_MS);
- *                   se o jogador não fechar a porta a tempo, dispara o
- *                   jumpscare. Se a porta está FECHADA, ele fica "batendo"
- *                   por DOOR_KNOCK_RETREAT_MS e depois recua.
- *   'retreating' -> recuou após ser bloqueado; fica em cooldown antes de
- *                   reiniciar o caminho do zero.
- * ---------------------------------------------------------------------------
- */
-
 class Enemy {
   constructor(cfg) {
     this.id = cfg.id;
     this.label = cfg.label;
-    this.path = cfg.path; // ex: ['quintal','cozinha','corredor','porta:esquerda']
+    this.startNode = cfg.startNode;
+    this.graph = cfg.graph;
+    this.onMoveSfx = cfg.onMoveSfx || null;
+    this.lockNode = cfg.lockNode || null; // {nodeId, timeoutMs, doorId}
     this.reset();
   }
 
   reset() {
-    this.pathIndex = -1; // -1 = ainda não apareceu em nenhum cômodo
-    this.state = 'roaming';
+    this.currentNode = null; // ainda não apareceu
+    this.state = 'roaming'; // roaming | atDoor | locked | retreating
     this.doorId = null;
     this.attackTimerMs = 0;
     this.knockTimerMs = 0;
+    this.lockTimerMs = 0;
     this.cooldownUntil = 0;
   }
 
-  /** Id do cômodo onde está agora (ou null se ainda não apareceu / já está na porta). */
   currentRoomId() {
-    if (this.pathIndex < 0) return null;
-    const step = this.path[this.pathIndex];
-    return step.startsWith('porta:') ? null : step;
+    if (!this.currentNode || this.currentNode.startsWith('porta:')) return null;
+    return this.currentNode;
   }
 
   isVisibleInRoom(roomId) {
-    return this.state === 'roaming' && this.currentRoomId() === roomId;
+    return (this.state === 'roaming' || this.state === 'locked') && this.currentNode === roomId;
   }
 
-  /** Só aparece na "checagem de luz" da porta se a luz estiver acesa. */
   isRevealedAtDoor(doorId, doors) {
     return this.state === 'atDoor' && this.doorId === doorId && doors[doorId].lightOn;
   }
 
-  _advanceStep(doors) {
-    this.pathIndex += 1;
-    const step = this.path[this.pathIndex];
-
-    if (step.startsWith('porta:')) {
-      this.doorId = step.split(':')[1];
+  _moveTo(nextNode, doors, assetLoader) {
+    if (nextNode.startsWith('porta:')) {
+      this.doorId = nextNode.split(':')[1];
+      this.currentNode = nextNode;
       this.state = 'atDoor';
       this.attackTimerMs = 0;
       this.knockTimerMs = 0;
       doors[this.doorId].occupiedBy = this.id;
     } else {
-      this.state = 'roaming';
+      this.currentNode = nextNode;
+      if (this.lockNode && this.lockNode.nodeId === nextNode) {
+        this.state = 'locked';
+        this.lockTimerMs = 0;
+      } else {
+        this.state = 'roaming';
+      }
     }
+    if (this.onMoveSfx && assetLoader) assetLoader.playSfx(this.onMoveSfx);
   }
 
   _retreat(doors, constants) {
@@ -77,15 +58,12 @@ class Enemy {
     }
     this.state = 'retreating';
     this.doorId = null;
+    this.currentNode = null;
     this.cooldownUntil = Date.now() + constants.ENEMY_RETREAT_COOLDOWN_MS;
-    this.pathIndex = -1;
   }
 
-  /**
-   * Chamado a cada AI_TICK_INTERVAL_MS pelo game.js.
-   * @returns {boolean} true se este tick causou um jumpscare (fim de jogo)
-   */
-  tick({ doors, cameraSystem, aggression, constants, tickIntervalMs }) {
+  /** Movimentação por agressividade — chamado a cada AI_TICK_INTERVAL_MS. */
+  tick({ doors, cameraSystem, aggression, constants, tickIntervalMs, assetLoader }) {
     const now = Date.now();
 
     if (this.state === 'retreating') {
@@ -93,34 +71,64 @@ class Enemy {
       return false;
     }
 
+    if (this.state === 'locked') return false; // resolvido em updateLock(), não aqui
+
     if (this.state === 'atDoor') {
       const door = doors[this.doorId];
       if (door.isClosed) {
         this.knockTimerMs += tickIntervalMs;
-        if (this.knockTimerMs >= constants.DOOR_KNOCK_RETREAT_MS) {
-          this._retreat(doors, constants);
-        }
+        if (this.knockTimerMs >= constants.DOOR_KNOCK_RETREAT_MS) this._retreat(doors, constants);
       } else {
         this.attackTimerMs += tickIntervalMs;
-        if (this.attackTimerMs >= constants.DOOR_ATTACK_GRACE_MS) {
-          return true; // JUMPSCARE — o game.js decide o que fazer com isso
-        }
+        if (this.attackTimerMs >= constants.DOOR_ATTACK_GRACE_MS) return true; // JUMPSCARE
       }
       return false;
     }
 
-    // state === 'roaming' (incluindo pathIndex === -1, "prestes a surgir")
+    // roaming
     let chance = aggression;
     const room = this.currentRoomId();
     if (room && cameraSystem.msSinceLastViewed(room) > constants.AI_NOT_WATCHED_THRESHOLD_MS) {
       chance += constants.AI_NOT_WATCHED_BONUS;
     }
 
-    const roll = Math.floor(Math.random() * 20); // 0..19
+    const roll = Math.floor(Math.random() * 20);
     if (roll < chance) {
-      this._advanceStep(doors);
+      const candidates = this.currentNode === null ? [this.startNode] : (this.graph[this.currentNode] || []);
+      if (candidates.length > 0) {
+        const next = candidates[Math.floor(Math.random() * candidates.length)];
+        this._moveTo(next, doors, assetLoader);
+      }
     }
     return false;
+  }
+
+  /**
+   * Mecânica exclusiva de nós com lockNode (hoje só o Freddy, Câm 2).
+   * Chamado A CADA FRAME (não por tick de IA), porque depende de reação
+   * imediata à troca de câmera do jogador.
+   * @returns {boolean} true se deve disparar jumpscare agora
+   */
+  updateLock(deltaMs, doors, cameraSystem) {
+    if (this.state !== 'locked' || !this.lockNode) return false;
+
+    const door = doors[this.lockNode.doorId];
+    const doorOpen = !door.isClosed;
+    if (!doorOpen) return false; // porta fechada = totalmente seguro (timer congela)
+
+    const watchingLockNode = cameraSystem.isOpen && cameraSystem.currentRoomId === this.lockNode.nodeId;
+    const watchingWrongCam = cameraSystem.isOpen && cameraSystem.currentRoomId !== this.lockNode.nodeId;
+
+    if (watchingWrongCam) return true; // Morte 1: câmera errada com a porta aberta
+
+    if (watchingLockNode) {
+      this.lockTimerMs = 0; // paralisado enquanto observado
+      return false;
+    }
+
+    // monitor fechado (não observando nada) — acumula o tempo-limite
+    this.lockTimerMs += deltaMs;
+    return this.lockTimerMs >= this.lockNode.timeoutMs; // Morte 2: timeout
   }
 }
 
@@ -133,11 +141,7 @@ class EnemyManager {
     this.enemies.forEach((e) => e.reset());
   }
 
-  /**
-   * @param {Object} nightAggression  mapa { enemyId: aggressionLevel } da noite atual
-   * @returns {string|null} id do inimigo que causou jumpscare, ou null
-   */
-  tickAll({ doors, cameraSystem, nightAggression, constants, tickIntervalMs }) {
+  tickAll({ doors, cameraSystem, nightAggression, constants, tickIntervalMs, assetLoader }) {
     for (const enemy of this.enemies) {
       const jumpscared = enemy.tick({
         doors,
@@ -145,8 +149,17 @@ class EnemyManager {
         aggression: nightAggression[enemy.id] ?? 0,
         constants,
         tickIntervalMs,
+        assetLoader,
       });
       if (jumpscared) return enemy.id;
+    }
+    return null;
+  }
+
+  /** Roda a mecânica de lockNode de todos os inimigos, a cada frame. */
+  updateLocks(deltaMs, doors, cameraSystem) {
+    for (const enemy of this.enemies) {
+      if (enemy.updateLock(deltaMs, doors, cameraSystem)) return enemy.id;
     }
     return null;
   }
@@ -155,7 +168,6 @@ class EnemyManager {
     return this.enemies.find((e) => e.id === id);
   }
 
-  /** Todos os inimigos visíveis agora num determinado cômodo (normalmente 0 ou 1). */
   getVisibleInRoom(roomId) {
     return this.enemies.filter((e) => e.isVisibleInRoom(roomId));
   }

@@ -1,18 +1,3 @@
-/**
- * game.js
- * ---------------------------------------------------------------------------
- * Orquestra tudo: cria os sistemas (portas, energia, câmeras, inimigos),
- * roda o loop principal (requestAnimationFrame) e reage aos eventos de
- * fim de noite (vitória às 6h, apagão, jumpscare/derrota).
- *
- * Este arquivo NÃO conhece nada sobre onde estão os botões na tela — ele
- * só expõe métodos públicos (toggleDoor, toggleLight, toggleMonitor,
- * switchCameraRoom, startNight). Quem liga esses métodos aos cliques do
- * usuário é o main.js. Essa separação é o que torna fácil, por exemplo,
- * adicionar controles por teclado no futuro sem tocar em game.js.
- * ---------------------------------------------------------------------------
- */
-
 class Game {
   constructor(canvas, assetLoader) {
     this.canvas = canvas;
@@ -20,22 +5,56 @@ class Game {
     this.assetLoader = assetLoader;
     this.constants = window.GAME_CONSTANTS;
 
+    // Buffer interno de baixa resolução -> upscale pixelado no canvas visível.
+    this.buffer = document.createElement('canvas');
+    this.buffer.width = this.constants.INTERNAL_WIDTH;
+    this.buffer.height = this.constants.INTERNAL_HEIGHT;
+    this.bufferCtx = this.buffer.getContext('2d');
+    this.bufferCtx.imageSmoothingEnabled = false;
+
     this.doors = createDoors(window.DOORS_CONFIG);
     this.power = new PowerSystem(this.constants, () => this._onBlackout());
     this.cameras = new CameraSystem(window.ROOMS);
     this.enemies = new EnemyManager(window.ENEMIES_CONFIG);
 
     this.nightIndex = 0;
-    this.state = 'menu'; // menu | playing | jumpscare | gameover | victory
+    this.state = 'menu';
     this.elapsedNightMs = 0;
     this.aiTickAccumulator = 0;
     this.lastFrameTime = 0;
 
+    const panRange = this.constants.OFFICE_WORLD_WIDTH - this.constants.INTERNAL_WIDTH;
+    this.cameraOffsetX = panRange / 2;
+    this.targetOffsetX = panRange / 2;
+
     UI.buildCameraTabs(window.ROOMS, (roomId) => this.switchCameraRoom(roomId));
+
+    this._resizeCanvas();
+    this._setupInputs();
   }
 
-  // -----------------------------------------------------------------
-  // CICLO DE VIDA DA NOITE
+  _resizeCanvas() {
+    this.canvas.width = window.innerWidth;
+    this.canvas.height = window.innerHeight;
+    this.ctx.imageSmoothingEnabled = false; // resize reseta o estado do contexto
+  }
+
+  _setupInputs() {
+    window.addEventListener('resize', () => this._resizeCanvas());
+    window.addEventListener('mousemove', (e) => {
+      const frac = Math.min(1, Math.max(0, e.clientX / window.innerWidth));
+      const panRange = this.constants.OFFICE_WORLD_WIDTH - this.constants.INTERNAL_WIDTH;
+      this.targetOffsetX = frac * panRange;
+    });
+  }
+
+  /** true se o jogador está olhando para a área central (permite abrir o monitor). */
+  isOffsetCentral() {
+    const panRange = this.constants.OFFICE_WORLD_WIDTH - this.constants.INTERNAL_WIDTH;
+    const center = panRange / 2;
+    return Math.abs(this.cameraOffsetX - center) <= this.constants.MONITOR_CENTER_MARGIN;
+  }
+
   // -----------------------------------------------------------------
   startNight(nightIndex) {
     this.nightIndex = Math.min(nightIndex, window.NIGHTS_CONFIG.length - 1);
@@ -61,8 +80,6 @@ class Game {
   }
 
   // -----------------------------------------------------------------
-  // AÇÕES DO JOGADOR (chamadas pelo main.js a partir dos cliques)
-  // -----------------------------------------------------------------
   toggleDoor(doorId) {
     if (this.state !== 'playing' || this.power.isBlackedOut) return;
     this.doors[doorId].toggleClosed();
@@ -79,7 +96,9 @@ class Game {
 
   toggleMonitor() {
     if (this.state !== 'playing' || this.power.isBlackedOut) return;
-    const isOpen = this.cameras.toggle();
+    if (!this.cameras.isOpen && !this.isOffsetCentral()) return; // bloqueado: não está olhando pro centro
+
+    const isOpen = this.cameras.toggle(this.isOffsetCentral());
     document.getElementById('camera-monitor').classList.toggle('hidden', !isOpen);
     document.getElementById('office-controls').classList.toggle('hidden', isOpen);
     if (isOpen) {
@@ -96,13 +115,7 @@ class Game {
   }
 
   // -----------------------------------------------------------------
-  // EVENTOS DE SISTEMA
-  // -----------------------------------------------------------------
   _onBlackout() {
-    // A partir daqui: nada mais funciona (nem portas nem luzes nem
-    // câmeras) — as guardas isBlackedOut nos métodos acima cuidam disso.
-    // As portas ficam destrancadas/abertas, então qualquer inimigo que
-    // chegar a uma delas vai direto para o cronômetro de ataque.
     Object.values(this.doors).forEach((d) => {
       d.isClosed = false;
       d.lightOn = false;
@@ -115,7 +128,8 @@ class Game {
 
   _triggerJumpscare(enemyId) {
     this.state = 'jumpscare';
-    UI.renderJumpscare(this.ctx, this.canvas, this.assetLoader, enemyId);
+    UI.renderJumpscare(this.bufferCtx, this.buffer, this.assetLoader, enemyId);
+    this._blitBuffer();
     this.assetLoader.playSfx('jumpscare', { volume: 1 });
     document.getElementById('hud').classList.add('hidden');
     document.getElementById('office-controls').classList.add('hidden');
@@ -139,27 +153,38 @@ class Game {
     UI.showScreen('victory-screen');
   }
 
-  // -----------------------------------------------------------------
-  // LOOP PRINCIPAL
+  _blitBuffer() {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.drawImage(
+      this.buffer, 0, 0, this.buffer.width, this.buffer.height,
+      0, 0, this.canvas.width, this.canvas.height,
+    );
+  }
+
   // -----------------------------------------------------------------
   loop(now) {
-    if (this.state !== 'playing') return; // telas cheias (CSS) cuidam do resto
+    if (this.state !== 'playing') return;
 
-    const deltaMs = Math.min(now - this.lastFrameTime, 200); // trava picos (aba em segundo plano etc.)
+    const deltaMs = Math.min(now - this.lastFrameTime, 200);
     this.lastFrameTime = now;
     this.elapsedNightMs += deltaMs;
 
+    // Pan suave (lerp) em direção à posição do mouse.
+    this.cameraOffsetX += (this.targetOffsetX - this.cameraOffsetX) * this.constants.MOUSE_PAN_SMOOTHING;
+
     const night = window.NIGHTS_CONFIG[this.nightIndex];
 
-    // 1) Energia
-    this.power.tick(
-      deltaMs / 1000,
-      Object.values(this.doors),
-      this.cameras.isOpen,
-      night.powerDrainMultiplier,
-    );
+    // 1) Mecânica de lockNode (Freddy/Câm 2) — checada a cada frame.
+    const lockedJumpscare = this.enemies.updateLocks(deltaMs, this.doors, this.cameras);
+    if (lockedJumpscare) {
+      this._triggerJumpscare(lockedJumpscare);
+      return;
+    }
 
-    // 2) IA — processada em ticks discretos, não a cada frame de canvas.
+    // 2) Energia
+    this.power.tick(deltaMs / 1000, Object.values(this.doors), this.cameras.isOpen, night.powerDrainMultiplier);
+
+    // 3) IA — movimentação em ticks discretos
     this.aiTickAccumulator += deltaMs;
     while (this.aiTickAccumulator >= this.constants.AI_TICK_INTERVAL_MS) {
       this.aiTickAccumulator -= this.constants.AI_TICK_INTERVAL_MS;
@@ -169,6 +194,7 @@ class Game {
         nightAggression: night.aggression,
         constants: this.constants,
         tickIntervalMs: this.constants.AI_TICK_INTERVAL_MS,
+        assetLoader: this.assetLoader,
       });
       if (jumpscaredBy) {
         this._triggerJumpscare(jumpscaredBy);
@@ -176,20 +202,23 @@ class Game {
       }
     }
 
-    // 3) Relógio da noite / condição de vitória
+    // 4) Relógio / vitória
     if (this.elapsedNightMs >= this.constants.NIGHT_DURATION_MS) {
       this._onVictory();
       return;
     }
-    const hourFloat = (this.elapsedNightMs / this.constants.NIGHT_DURATION_MS)
-      * this.constants.HOURS_PER_NIGHT;
+    const hourFloat = (this.elapsedNightMs / this.constants.NIGHT_DURATION_MS) * this.constants.HOURS_PER_NIGHT;
 
-    // 4) Desenho
+    // 5) Desenho: cena em baixa resolução -> upscale pixelado + estática
+    this.bufferCtx.clearRect(0, 0, this.buffer.width, this.buffer.height);
     if (this.cameras.isOpen) {
-      UI.renderCameraMonitor(this.ctx, this.canvas, this.assetLoader, this);
+      UI.renderCameraMonitor(this.bufferCtx, this.buffer, this.assetLoader, this);
     } else {
-      UI.renderOffice(this.ctx, this.canvas, this.assetLoader, this);
+      UI.renderOffice(this.bufferCtx, this.buffer, this.assetLoader, this);
     }
+    UI.drawStaticNoise(this.bufferCtx, this.buffer.width, this.buffer.height, this.constants.STATIC_NOISE_DENSITY);
+    this._blitBuffer();
+
     UI.updateHud({
       powerPct: this.power.percentage,
       powerLow: this.power.isLow(),

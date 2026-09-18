@@ -32,19 +32,25 @@ class CameraSystem {
     this.rooms.forEach((r) => (this.lastViewedAt[r.id] = now));
   }
 
-  open() {
+  /** @param {boolean} allowed  false bloqueia a abertura (ex.: não olhando pro centro) */
+  open(allowed = true) {
+    if (!allowed) return false;
     this.isOpen = true;
     this.lastSwitchAt = Date.now();
     this._markViewed(this.currentRoomId);
+    return true;
   }
 
   close() {
     this.isOpen = false;
   }
 
-  toggle() {
-    this.isOpen ? this.close() : this.open();
-    return this.isOpen;
+  toggle(allowed = true) {
+    if (this.isOpen) {
+      this.close();
+      return false;
+    }
+    return this.open(allowed);
   }
 
   switchRoom(roomId) {

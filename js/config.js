@@ -1,63 +1,44 @@
-/**
- * config.js
- * ---------------------------------------------------------------------------
- * ARQUIVO MAIS IMPORTANTE PARA A PERSONALIZAÇÃO DO JOGO.
- *
- * Tudo o que é "visual" ou "sonoro" no jogo está mapeado aqui dentro do
- * objeto ASSETS. O código do jogo (js/*.js) nunca tem um caminho de imagem
- * ou som "hard-coded" fora deste arquivo — ele sempre pergunta a este
- * objeto qual arquivo usar.
- *
- * Isso significa que, para trocar qualquer sprite ou som pela foto da sua
- * casa/família/pets, você NÃO precisa mexer em nenhuma lógica do jogo:
- * basta colocar o arquivo novo na pasta indicada, com o mesmo nome, ou
- * mudar o caminho abaixo para apontar para o seu arquivo.
- *
- * Se um arquivo listado aqui não existir ainda, o jogo não quebra: o
- * assetLoader.js desenha um placeholder colorido com o nome do asset no
- * lugar, então o jogo roda de ponta a ponta mesmo antes de você inserir
- * uma única imagem sua.
- * ---------------------------------------------------------------------------
- */
-
 const ASSETS = {
   images: {
-    // Tela do "escritório"/quarto onde o jogador fica sentado.
     office: {
-      background: 'assets/images/office/background.png',
-      overlayDark: 'assets/images/office/overlay_dark.png', // vinheta escura opcional
+      background: 'assets/images/office/background.png', // panorama largo (180°)
     },
-
-    // Uma imagem de fundo por cômodo mostrado nas câmeras.
-    // Chave = id do cômodo (ver ROOMS mais abaixo).
     cameras: {
-      quintal: 'assets/images/cameras/quintal.png',
-      cozinha: 'assets/images/cameras/cozinha.png',
-      sala: 'assets/images/cameras/sala.png',
-      corredor: 'assets/images/cameras/corredor.png',
-      static: 'assets/images/cameras/static.png', // ruído ao trocar de câmera
+      cam1: 'assets/images/cameras/cam1.png',
+      cam2: 'assets/images/cameras/cam2.png',
+      cam3: 'assets/images/cameras/cam3.png',
+      cam4: 'assets/images/cameras/cam4.png',
+      cam5: 'assets/images/cameras/cam5.png',
+      cam6: 'assets/images/cameras/cam6.png',
+      cam7: 'assets/images/cameras/cam7.png',
+      cam8: 'assets/images/cameras/cam8.png',
+      static: 'assets/images/cameras/static.png',
     },
-
-    // Sprite do "inimigo" (o que vai substituir por uma foto de alguém
-    // da família ou de um pet) em cada cômodo por onde ele passa, mais o
-    // frame de jumpscare em tela cheia.
     enemies: {
-      ent1: {
-        quintal: 'assets/images/enemies/ent1_quintal.png',
-        cozinha: 'assets/images/enemies/ent1_cozinha.png',
-        corredor: 'assets/images/enemies/ent1_corredor.png',
-        naPorta: 'assets/images/enemies/ent1_na_porta.png', // aparece ao acender a luz da porta
-        jumpscare: 'assets/images/enemies/ent1_jumpscare.png',
+      freddy: {
+        cam8: 'assets/images/enemies/freddy_cam8.png',
+        cam3: 'assets/images/enemies/freddy_cam3.png',
+        cam5: 'assets/images/enemies/freddy_cam5.png',
+        cam2: 'assets/images/enemies/freddy_cam2.png',
+        jumpscare: 'assets/images/enemies/freddy_jumpscare.png',
       },
-      ent2: {
-        sala: 'assets/images/enemies/ent2_sala.png',
-        corredor: 'assets/images/enemies/ent2_corredor.png',
-        naPorta: 'assets/images/enemies/ent2_na_porta.png',
-        jumpscare: 'assets/images/enemies/ent2_jumpscare.png',
+      bonnie: {
+        cam8: 'assets/images/enemies/bonnie_cam8.png',
+        cam3: 'assets/images/enemies/bonnie_cam3.png',
+        cam2: 'assets/images/enemies/bonnie_cam2.png',
+        cam4: 'assets/images/enemies/bonnie_cam4.png',
+        naPorta: 'assets/images/enemies/bonnie_na_porta.png',
+        jumpscare: 'assets/images/enemies/bonnie_jumpscare.png',
+      },
+      chica: {
+        cam8: 'assets/images/enemies/chica_cam8.png',
+        cam7: 'assets/images/enemies/chica_cam7.png',
+        cam6: 'assets/images/enemies/chica_cam6.png',
+        cam1: 'assets/images/enemies/chica_cam1.png',
+        cam5: 'assets/images/enemies/chica_cam5.png',
+        jumpscare: 'assets/images/enemies/chica_jumpscare.png',
       },
     },
-
-    // Ícones de UI (HUD, botões).
     ui: {
       iconPower: 'assets/images/ui/icon_power.png',
       iconCamera: 'assets/images/ui/icon_camera.png',
@@ -76,91 +57,109 @@ const ASSETS = {
     knock: 'assets/audio/sfx/knock.mp3',
     jumpscare: 'assets/audio/sfx/jumpscare.mp3',
     victory: 'assets/audio/sfx/victory_6am.mp3',
+    risada: 'assets/audio/sfx/risada.mp3',
   },
 };
 
-// -----------------------------------------------------------------------
-// CÔMODOS (usados pelas câmeras e pelos caminhos dos inimigos)
-// -----------------------------------------------------------------------
 const ROOMS = [
-  { id: 'quintal', label: 'Câm. 1 — Quintal' },
-  { id: 'cozinha', label: 'Câm. 2 — Cozinha' },
-  { id: 'sala', label: 'Câm. 3 — Sala' },
-  { id: 'corredor', label: 'Câm. 4 — Corredor' },
+  { id: 'cam1', label: 'Câm. 1' },
+  { id: 'cam2', label: 'Câm. 2' },
+  { id: 'cam3', label: 'Câm. 3' },
+  { id: 'cam4', label: 'Câm. 4' },
+  { id: 'cam5', label: 'Câm. 5' },
+  { id: 'cam6', label: 'Câm. 6' },
+  { id: 'cam7', label: 'Câm. 7' },
+  { id: 'cam8', label: 'Câm. 8' },
 ];
 
-// -----------------------------------------------------------------------
-// PORTAS (o jogador defende exatamente estas duas entradas)
-// -----------------------------------------------------------------------
 const DOORS_CONFIG = [
   { id: 'esquerda', label: 'Porta Esquerda' },
   { id: 'direita', label: 'Porta Direita' },
 ];
 
-// -----------------------------------------------------------------------
-// INIMIGOS: cada um tem um "caminho" de cômodos até uma porta específica.
-// O último elemento do path SEMPRE é 'porta:<id-da-porta>'.
-// -----------------------------------------------------------------------
+// Cada inimigo agora usa um GRAFO de nós (não mais uma lista linear).
+// graph[nó] = lista de próximos nós possíveis (escolha aleatória entre eles).
+// Um nó 'porta:<id>' é uma porta de verdade (ataque clássico).
+// lockNode (só o Freddy usa) trava o inimigo num cômodo com uma mecânica
+// própria, resolvida por Enemy.updateLock() a cada frame (não por tick de IA).
 const ENEMIES_CONFIG = [
   {
-    id: 'ent1',
-    label: 'Figura 1',
-    path: ['quintal', 'cozinha', 'corredor', 'porta:esquerda'],
-    // tempo mínimo (ms) que ele fica "parado" observável antes de poder
-    // avançar de novo, mesmo com sorte no dado — evita saltos bruscos.
-    minTicksBetweenMoves: 1,
+    id: 'freddy',
+    label: 'Freddy',
+    startNode: 'cam8',
+    graph: {
+      cam8: ['cam3', 'cam5'],
+      cam3: ['cam2'],
+      cam5: ['cam2'],
+      cam2: [],
+    },
+    onMoveSfx: 'risada',
+    lockNode: { nodeId: 'cam2', timeoutMs: 20000, doorId: 'esquerda' },
   },
   {
-    id: 'ent2',
-    label: 'Figura 2',
-    path: ['sala', 'corredor', 'porta:direita'],
-    minTicksBetweenMoves: 1,
+    id: 'bonnie',
+    label: 'Bonnie',
+    startNode: 'cam8',
+    graph: {
+      cam8: ['cam3'],
+      cam3: ['cam2', 'cam4'],
+      cam2: ['porta:esquerda'],
+      cam4: [],
+    },
+  },
+  {
+    id: 'chica',
+    label: 'Chica',
+    startNode: 'cam8',
+    graph: {
+      cam8: ['cam7'],
+      cam7: ['cam6'],
+      cam6: ['cam1', 'cam5'],
+      cam1: [],
+      cam5: [],
+    },
   },
 ];
 
-// -----------------------------------------------------------------------
-// DIFICULDADE POR NOITE
-// "aggression" vai de 0 a 20 — é a chance em 20 (0 a 19) do inimigo
-// avançar um passo no seu caminho a cada tick de IA. É o mesmo esquema
-// de "AI level" clássico do gênero point-and-click de terror noturno.
-// -----------------------------------------------------------------------
 const NIGHTS_CONFIG = [
-  { label: 'Noite 1', aggression: { ent1: 1, ent2: 1 }, powerDrainMultiplier: 1.0 },
-  { label: 'Noite 2', aggression: { ent1: 2, ent2: 2 }, powerDrainMultiplier: 1.1 },
-  { label: 'Noite 3', aggression: { ent1: 3, ent2: 4 }, powerDrainMultiplier: 1.2 },
-  { label: 'Noite 4', aggression: { ent1: 5, ent2: 5 }, powerDrainMultiplier: 1.35 },
-  { label: 'Noite 5', aggression: { ent1: 7, ent2: 7 }, powerDrainMultiplier: 1.5 },
+  { label: 'Noite 1', aggression: { freddy: 1, bonnie: 1, chica: 1 }, powerDrainMultiplier: 1.0 },
+  { label: 'Noite 2', aggression: { freddy: 2, bonnie: 2, chica: 2 }, powerDrainMultiplier: 1.1 },
+  { label: 'Noite 3', aggression: { freddy: 3, bonnie: 4, chica: 3 }, powerDrainMultiplier: 1.2 },
+  { label: 'Noite 4', aggression: { freddy: 5, bonnie: 5, chica: 5 }, powerDrainMultiplier: 1.35 },
+  { label: 'Noite 5', aggression: { freddy: 6, bonnie: 7, chica: 7 }, powerDrainMultiplier: 1.5 },
 ];
 
-// -----------------------------------------------------------------------
-// CONSTANTES GERAIS DE JOGO — ajuste o "balanceamento" aqui.
-// -----------------------------------------------------------------------
 const GAME_CONSTANTS = {
-  HOURS_PER_NIGHT: 6, // meia-noite às 6h
-  NIGHT_DURATION_MS: 5 * 60 * 1000, // duração real de uma noite inteira
+  HOURS_PER_NIGHT: 6,
+  NIGHT_DURATION_MS: 5 * 60 * 1000,
 
-  CAMERA_STATIC_FLASH_MS: 220, // duração do "ruído" visual ao trocar de câmera
+  CAMERA_STATIC_FLASH_MS: 220,
 
-  AI_TICK_INTERVAL_MS: 5000, // a cada 5s, cada inimigo "rola o dado"
-  AI_NOT_WATCHED_BONUS: 2, // chance extra (+2/20) se a câmera dele não é vista há muito tempo
-  AI_NOT_WATCHED_THRESHOLD_MS: 15000, // "muito tempo" sem checar aquele cômodo
+  AI_TICK_INTERVAL_MS: 5000,
+  AI_NOT_WATCHED_BONUS: 2,
+  AI_NOT_WATCHED_THRESHOLD_MS: 15000,
 
-  // Energia
   POWER_MAX: 100,
-  POWER_DRAIN_BASE_PER_SEC: 0.04, // drena mesmo com tudo desligado
+  POWER_DRAIN_BASE_PER_SEC: 0.04,
   POWER_DRAIN_PER_DOOR_CLOSED_PER_SEC: 0.10,
   POWER_DRAIN_PER_LIGHT_ON_PER_SEC: 0.12,
   POWER_DRAIN_MONITOR_OPEN_PER_SEC: 0.16,
   POWER_LOW_WARNING_THRESHOLD: 20,
 
-  // Janela de perigo na porta
-  DOOR_ATTACK_GRACE_MS: 4000, // tempo até o jumpscare depois que ele chega e a porta está aberta
-  DOOR_KNOCK_RETREAT_MS: 3000, // tempo batendo na porta fechada antes de recuar
-  ENEMY_RETREAT_COOLDOWN_MS: 8000, // tempo até tentar de novo após recuar
+  DOOR_ATTACK_GRACE_MS: 4000,
+  DOOR_KNOCK_RETREAT_MS: 3000,
+  ENEMY_RETREAT_COOLDOWN_MS: 8000,
+
+  // Motor visual (tela cheia, pan 180°, estética VHS)
+  INTERNAL_WIDTH: 480,
+  INTERNAL_HEIGHT: 270,
+  OFFICE_WORLD_WIDTH: 1440, // panorama 3x mais largo que a tela = visão de 180°
+  MONITOR_CENTER_MARGIN: 160, // faixa central (em px do mundo) onde dá pra abrir o monitor
+  MOUSE_PAN_SMOOTHING: 0.12,
+  JITTER_MAX_PX: 1.5,
+  STATIC_NOISE_DENSITY: 45,
 };
 
-// Exposto globalmente (sem módulos ES, de propósito — roda direto no
-// GitHub Pages ou abrindo o index.html localmente, sem servidor).
 window.ASSETS = ASSETS;
 window.ROOMS = ROOMS;
 window.DOORS_CONFIG = DOORS_CONFIG;

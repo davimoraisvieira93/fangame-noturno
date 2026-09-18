@@ -1,61 +1,41 @@
 # Guia de substituição de assets
 
 Regra de ouro: **o nome e o caminho do arquivo importam, o conteúdo não.**
-Se você colocar um arquivo com exatamente o nome/caminho abaixo, o jogo
-passa a usá-lo automaticamente — nenhuma linha de código precisa mudar.
-Se quiser usar outro nome, mude apenas o valor correspondente em
-`js/config.js` (objeto `ASSETS`).
-
-Enquanto um arquivo não existir, o jogo desenha um retângulo cinza/vermelho
-com o nome do asset escrito — assim você sempre sabe o que falta.
+Coloque o arquivo com o nome exato abaixo e o jogo passa a usá-lo
+automaticamente. Para renomear, mude apenas `js/config.js` (objeto `ASSETS`).
+Enquanto um arquivo não existir, o jogo desenha um placeholder no lugar.
 
 ## Imagens
 
-| Onde entra | Caminho esperado | Sugestão de tamanho |
-|---|---|---|
-| Fundo do seu "quarto"/escritório | `assets/images/office/background.png` | 960×540 |
-| Câmera — Quintal | `assets/images/cameras/quintal.png` | 960×540 |
-| Câmera — Cozinha | `assets/images/cameras/cozinha.png` | 960×540 |
-| Câmera — Sala | `assets/images/cameras/sala.png` | 960×540 |
-| Câmera — Corredor | `assets/images/cameras/corredor.png` | 960×540 |
-| Estática ao trocar de câmera | `assets/images/cameras/static.png` | 960×540 |
-| Figura 1 no quintal | `assets/images/enemies/ent1_quintal.png` | fundo transparente (PNG) |
-| Figura 1 na cozinha | `assets/images/enemies/ent1_cozinha.png` | fundo transparente |
-| Figura 1 no corredor | `assets/images/enemies/ent1_corredor.png` | fundo transparente |
-| Figura 1 parada na porta (revelada pela luz) | `assets/images/enemies/ent1_na_porta.png` | preenche a "janela" da porta |
-| Figura 1 — jumpscare em tela cheia | `assets/images/enemies/ent1_jumpscare.png` | 960×540, close-up assustador |
-| Figura 2 na sala | `assets/images/enemies/ent2_sala.png` | fundo transparente |
-| Figura 2 no corredor | `assets/images/enemies/ent2_corredor.png` | fundo transparente |
-| Figura 2 parada na porta | `assets/images/enemies/ent2_na_porta.png` | preenche a "janela" da porta |
-| Figura 2 — jumpscare em tela cheia | `assets/images/enemies/ent2_jumpscare.png` | 960×540 |
+| Onde entra | Caminho esperado |
+|---|---|
+| Panorama do escritório (mais largo que a tela — visão 180°) | `assets/images/office/background.png` |
+| Câmeras 1 a 8 | `assets/images/cameras/cam1.png` … `cam8.png` |
+| Estática ao trocar de câmera | `assets/images/cameras/static.png` |
+| Freddy em cada nó do caminho dele | `freddy_cam8.png`, `freddy_cam3.png`, `freddy_cam5.png`, `freddy_cam2.png` |
+| Freddy — jumpscare | `freddy_jumpscare.png` |
+| Bonnie em cada nó | `bonnie_cam8.png`, `bonnie_cam3.png`, `bonnie_cam2.png`, `bonnie_cam4.png` |
+| Bonnie parada na Porta Esquerda | `bonnie_na_porta.png` |
+| Bonnie — jumpscare | `bonnie_jumpscare.png` |
+| Chica em cada nó | `chica_cam8.png`, `chica_cam7.png`, `chica_cam6.png`, `chica_cam1.png`, `chica_cam5.png` |
+| Chica — jumpscare | `chica_jumpscare.png` |
 
-*(Ícones em `assets/images/ui/` são opcionais — hoje a interface usa
-emojis nos botões; adicione os arquivos e troque os emojis em
-`index.html` se preferir ícones próprios.)*
+(Os arquivos dos personagens ficam todos em `assets/images/enemies/`.)
 
 ## Sons
 
+Mesma lista de antes, mais um novo efeito:
+
 | Onde entra | Caminho esperado |
 |---|---|
-| Som ambiente contínuo | `assets/audio/ambience/ambience_loop.mp3` |
-| Abrir/fechar porta | `assets/audio/sfx/door_toggle.mp3` |
-| Ligar/desligar luz | `assets/audio/sfx/light_toggle.mp3` |
-| Estática ao trocar câmera | `assets/audio/sfx/camera_static.mp3` |
-| Aviso de energia baixa | `assets/audio/sfx/power_low.mp3` |
-| Apagão | `assets/audio/sfx/blackout.mp3` |
-| Batida na porta | `assets/audio/sfx/knock.mp3` |
-| Jumpscare | `assets/audio/sfx/jumpscare.mp3` |
-| Vitória (6 da manhã) | `assets/audio/sfx/victory_6am.mp3` |
+| Risada do Freddy ao se mover com sucesso | `assets/audio/sfx/risada.mp3` |
+| Ambiente, porta, luz, estática, energia baixa, apagão, batida, jumpscare, vitória | ver os demais nomes em `js/config.js` (`ASSETS.audio`), todos dentro de `assets/audio/` |
 
-## Adicionando mais cômodos, inimigos ou noites
+## Trocando os personagens pelos seus
 
-Tudo isso é configuração, não código:
-
-- **Novo cômodo de câmera:** adicione um item em `ROOMS` (`js/config.js`)
-  e a imagem correspondente em `ASSETS.images.cameras`.
-- **Novo morador/pet como "inimigo":** adicione um item em
-  `ENEMIES_CONFIG` com seu próprio `path` (lista de cômodos até uma das
-  portas) e as imagens dele em `ASSETS.images.enemies`.
-- **Nova noite / dificuldade:** adicione um item em `NIGHTS_CONFIG` com
-  a agressividade de cada inimigo e o multiplicador de consumo de
-  energia daquela noite.
+`freddy`, `bonnie` e `chica` em `js/config.js` (`ENEMIES_CONFIG`) são só
+identificadores — troque `label` pelo nome de quem você quiser (uma pessoa
+da família, um pet) e os arquivos de imagem/som correspondentes. As rotas
+(`graph`) e a mecânica especial da Câm 2 (`lockNode`) continuam funcionando
+normalmente, independente do nome escolhido — vale renomear antes de
+publicar o repositório publicamente.

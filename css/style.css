@@ -24,12 +24,10 @@ html, body {
 
 #game-container {
   position: relative;
-  width: 960px;
-  height: 540px;
-  max-width: 100vw;
-  max-height: 100vh;
-  margin: 0 auto;
+  width: 100vw;
+  height: 100vh;
   background: #000;
+  cursor: none;
 }
 
 canvas#game-canvas {

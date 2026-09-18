@@ -4,7 +4,7 @@
  * Responsável por carregar todas as imagens/sons listados em config.js.
  *
  * Ponto-chave da modularidade: se um arquivo de imagem ainda não existe
- * (por exemplo, você ainda não tirou a foto do "quintal"), o loader NÃO
+ * (por exemplo, você ainda não tirou a foto da "Câm. 1"), o loader NÃO
  * trava o jogo. Ele marca aquele asset como "placeholder" e o desenho.js
  * (ui.js) desenha um retângulo colorido com o nome do asset escrito nele.
  *
