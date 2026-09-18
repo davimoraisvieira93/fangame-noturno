@@ -1,0 +1,194 @@
+:root {
+  --bg-void: #0a0b0e;
+  --panel-dark: #14161cf2;
+  --panel-border: #2c2f38;
+  --text-light: #e7e6e2;
+  --text-dim: #8b8f9a;
+  --accent-security: #3fae5c;
+  --accent-danger: #c23b3b;
+  --accent-power: #d9a441;
+  --font-display: Georgia, 'Times New Roman', serif;
+  --font-mono: 'Courier New', Courier, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg-void);
+  color: var(--text-light);
+  font-family: var(--font-mono);
+  overflow: hidden;
+}
+
+#game-container {
+  position: relative;
+  width: 960px;
+  height: 540px;
+  max-width: 100vw;
+  max-height: 100vh;
+  margin: 0 auto;
+  background: #000;
+}
+
+canvas#game-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+/* ---------------------------------------------------------------- HUD */
+#hud {
+  position: absolute;
+  top: 14px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 20px;
+  pointer-events: none;
+  font-size: 15px;
+  text-shadow: 0 1px 3px #000;
+  letter-spacing: 0.02em;
+}
+
+#hud-power.low #hud-power-value {
+  color: var(--accent-danger);
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  50% { opacity: 0.35; }
+}
+
+/* --------------------------------------------------- Controles do escritório */
+#office-controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 0 24px;
+}
+
+.door-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--panel-dark);
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  padding: 10px;
+  width: 150px;
+}
+
+.door-panel-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+button {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  background: #1c1f27;
+  color: var(--text-light);
+  border: 1px solid var(--panel-border);
+  border-radius: 3px;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+button:hover { background: #262a35; }
+
+button[data-action="toggle-door"].active {
+  border-color: var(--accent-security);
+  color: var(--accent-security);
+}
+
+button[data-action="toggle-light"].active {
+  border-color: var(--accent-power);
+  color: var(--accent-power);
+}
+
+.monitor-btn {
+  align-self: center;
+  font-size: 15px;
+  padding: 12px 20px;
+}
+
+/* ------------------------------------------------------- Monitor de câmeras */
+#camera-monitor {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  padding-bottom: 16px;
+}
+
+#camera-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+  background: var(--panel-dark);
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid var(--panel-border);
+}
+
+.camera-tab.active {
+  border-color: var(--accent-security);
+  color: var(--accent-security);
+}
+
+/* ------------------------------------------------------------------ Telas */
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  text-align: center;
+  background: radial-gradient(ellipse at center, #16161a 0%, #050506 100%);
+  padding: 0 40px;
+}
+
+.screen h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 40px;
+  letter-spacing: 0.03em;
+  margin: 0;
+  color: var(--text-light);
+}
+
+.subtitle {
+  max-width: 480px;
+  color: var(--text-dim);
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.screen-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+#menu-screen button, .screen-buttons button {
+  font-size: 15px;
+  padding: 12px 22px;
+}
+
+#gameover-screen h1 { color: var(--accent-danger); }
+#victory-screen h1 { color: var(--accent-security); }
+
+.hidden { display: none !important; }
