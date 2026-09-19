@@ -29,7 +29,17 @@
     loadingScreen.classList.add('hidden');
 
     // Toca a música assim que o menu carregar (pode precisar de 1 clique na tela antes)
-    beatboxMusic.play().catch(() => console.log("Aguardando clique para tocar áudio"));
+  // Toca a música assim que o menu carregar
+    beatboxMusic.play().catch(() => {
+      console.log("Chrome bloqueou o áudio automático. Aguardando clique do jogador...");
+      
+      // Armadilha: no exato momento que você clicar na tela, a música liga à força
+      document.body.addEventListener('click', () => {
+        if (beatboxMusic.paused && menuScreen.style.display !== 'none') {
+          beatboxMusic.play().catch(() => {});
+        }
+      }, { once: true });
+    });
 
     wireMenuButtons();
     wireOfficeControls();
