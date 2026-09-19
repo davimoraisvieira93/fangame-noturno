@@ -5,7 +5,6 @@ class Game {
     this.assetLoader = assetLoader;
     this.constants = window.GAME_CONSTANTS;
 
-    // Buffer interno de baixa resolução -> upscale pixelado no canvas visível.
     this.buffer = document.createElement('canvas');
     this.buffer.width = this.constants.INTERNAL_WIDTH;
     this.buffer.height = this.constants.INTERNAL_HEIGHT;
@@ -17,47 +16,56 @@ class Game {
     this.cameras = new CameraSystem(window.ROOMS);
     this.enemies = new EnemyManager(window.ENEMIES_CONFIG);
 
+    this.mode = 'story';
+    this.lastRun = { mode: 'story', nightIndex: 0, levels: null };
+    this.customLevels = {};
     this.nightIndex = 0;
     this.state = 'menu';
     this.elapsedNightMs = 0;
     this.aiTickAccumulator = 0;
     this.lastFrameTime = 0;
 
-    const panRange = this.constants.OFFICE_WORLD_WIDTH - this.constants.INTERNAL_WIDTH;
-    this.cameraOffsetX = panRange / 2;
-    this.targetOffsetX = panRange / 2;
+    this.viewIndex = 1;
+    this.cameraOffsetX = this._viewOffset(1);
+    this.targetOffsetX = this._viewOffset(1);
 
     UI.buildCameraTabs(window.ROOMS, (roomId) => this.switchCameraRoom(roomId));
-
     this._resizeCanvas();
     this._setupInputs();
   }
 
+  get view() { return window.VIEWS[this.viewIndex]; }
+  _viewOffset(i) { return i * this.constants.INTERNAL_WIDTH; }
+
   _resizeCanvas() {
     this.canvas.width = window.innerWidth;
     this.canvas.height = window.innerHeight;
-    this.ctx.imageSmoothingEnabled = false; // resize reseta o estado do contexto
+    this.ctx.imageSmoothingEnabled = false;
   }
 
   _setupInputs() {
     window.addEventListener('resize', () => this._resizeCanvas());
-    window.addEventListener('mousemove', (e) => {
-      const frac = Math.min(1, Math.max(0, e.clientX / window.innerWidth));
-      const panRange = this.constants.OFFICE_WORLD_WIDTH - this.constants.INTERNAL_WIDTH;
-      this.targetOffsetX = frac * panRange;
+
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-action="turn"]');
+      if (btn) this.turn(Number(btn.dataset.dir));
     });
   }
 
-  /** true se o jogador está olhando para a área central (permite abrir o monitor). */
-  isOffsetCentral() {
-    const panRange = this.constants.OFFICE_WORLD_WIDTH - this.constants.INTERNAL_WIDTH;
-    const center = panRange / 2;
-    return Math.abs(this.cameraOffsetX - center) <= this.constants.MONITOR_CENTER_MARGIN;
+  turn(dir) {
+    if (this.state !== 'playing' || this.cameras.isOpen || this.power.isBlackedOut) return;
+    const next = Math.min(window.VIEWS.length - 1, Math.max(0, this.viewIndex + dir));
+    if (next === this.viewIndex) return;
+    this.viewIndex = next;
+    this.targetOffsetX = this._viewOffset(next);
+    UI.syncControls(this);
   }
 
-  // -----------------------------------------------------------------
-  startNight(nightIndex) {
+  startRun({ mode = 'story', nightIndex = 0, levels = null } = {}) {
+    this.mode = mode;
+    this.lastRun = { mode, nightIndex, levels };
     this.nightIndex = Math.min(nightIndex, window.NIGHTS_CONFIG.length - 1);
+    this.customLevels = levels || {};
     this.elapsedNightMs = 0;
     this.aiTickAccumulator = 0;
 
@@ -66,29 +74,59 @@ class Game {
     this.cameras.reset();
     this.enemies.reset();
 
+    this.viewIndex = 1;
+    this.cameraOffsetX = this.targetOffsetX = this._viewOffset(1);
+
     this.state = 'playing';
     this.lastFrameTime = performance.now();
 
     UI.hideAllScreens();
+    UI.setEnemyOverlays([]);
     document.getElementById('hud').classList.remove('hidden');
     document.getElementById('office-controls').classList.remove('hidden');
     document.getElementById('camera-monitor').classList.add('hidden');
     UI.setDoorButtonsState(this.doors);
+    UI.syncControls(this);
 
     this.assetLoader.playSfx('ambience', { loop: true, volume: 0.5 });
     requestAnimationFrame((t) => this.loop(t));
   }
 
-  // -----------------------------------------------------------------
+  startNight(nightIndex) { this.startRun({ mode: 'story', nightIndex }); }
+  restart() { this.startRun(this.lastRun); }
+
+  _currentNight() {
+    const c = this.constants;
+    if (this.mode === 'custom') {
+      return { label: 'Custom Night', aggression: this.customLevels, powerDrainMultiplier: 1.2 };
+    }
+    if (this.mode === 'infinite') {
+      const level = Math.min(
+        c.INFINITE_MAX_LEVEL,
+        c.INFINITE_START_LEVEL + Math.floor(this.elapsedNightMs / c.INFINITE_RAMP_MS),
+      );
+      const aggression = Object.fromEntries(window.ENEMIES_CONFIG.map((e) => [e.id, level]));
+      return { label: 'Modo Infinito', aggression, powerDrainMultiplier: c.INFINITE_POWER_MULT };
+    }
+    return window.NIGHTS_CONFIG[this.nightIndex];
+  }
+
+  _canActOnDoor(doorId) {
+    return this.state === 'playing'
+      && !this.power.isBlackedOut
+      && !this.cameras.isOpen
+      && this.view === doorId;
+  }
+
   toggleDoor(doorId) {
-    if (this.state !== 'playing' || this.power.isBlackedOut) return;
+    if (!this._canActOnDoor(doorId)) return;
     this.doors[doorId].toggleClosed();
     this.assetLoader.playSfx('doorToggle');
     UI.setDoorButtonsState(this.doors);
   }
 
   toggleLight(doorId) {
-    if (this.state !== 'playing' || this.power.isBlackedOut) return;
+    if (!this._canActOnDoor(doorId)) return;
     this.doors[doorId].toggleLight();
     this.assetLoader.playSfx('lightToggle');
     UI.setDoorButtonsState(this.doors);
@@ -96,15 +134,16 @@ class Game {
 
   toggleMonitor() {
     if (this.state !== 'playing' || this.power.isBlackedOut) return;
-    if (!this.cameras.isOpen && !this.isOffsetCentral()) return; // bloqueado: não está olhando pro centro
+    if (!this.cameras.isOpen && this.view !== 'centro') return;
 
-    const isOpen = this.cameras.toggle(this.isOffsetCentral());
+    const isOpen = this.cameras.toggle(true);
     document.getElementById('camera-monitor').classList.toggle('hidden', !isOpen);
     document.getElementById('office-controls').classList.toggle('hidden', isOpen);
     if (isOpen) {
       this.assetLoader.playSfx('cameraStatic', { volume: 0.4 });
       UI.setActiveCameraTab(this.cameras.currentRoomId);
     }
+    UI.syncControls(this);
   }
 
   switchCameraRoom(roomId) {
@@ -114,42 +153,74 @@ class Game {
     UI.setActiveCameraTab(roomId);
   }
 
-  // -----------------------------------------------------------------
   _onBlackout() {
-    Object.values(this.doors).forEach((d) => {
-      d.isClosed = false;
-      d.lightOn = false;
-    });
+    Object.values(this.doors).forEach((d) => { d.isClosed = false; d.lightOn = false; });
     this.cameras.close();
     document.getElementById('camera-monitor').classList.add('hidden');
     document.getElementById('office-controls').classList.add('hidden');
     this.assetLoader.playSfx('blackout');
+    UI.syncControls(this);
   }
 
   _triggerJumpscare(enemyId) {
     this.state = 'jumpscare';
-    UI.renderJumpscare(this.bufferCtx, this.buffer, this.assetLoader, enemyId);
+    const overlays = UI.renderJumpscare(this.bufferCtx, this.buffer, this.assetLoader, enemyId);
     this._blitBuffer();
+    UI.setEnemyOverlays(overlays);
     this.assetLoader.playSfx('jumpscare', { volume: 1 });
     document.getElementById('hud').classList.add('hidden');
     document.getElementById('office-controls').classList.add('hidden');
     document.getElementById('camera-monitor').classList.add('hidden');
-    setTimeout(() => this._onGameOver(), 2200);
+
+    let result = null;
+    if (this.mode === 'infinite') {
+      const ms = this.elapsedNightMs;
+      result = { ms, rank: window.Progression.addScore(ms) };
+    }
+    setTimeout(() => this._onGameOver(result), 2200);
   }
 
-  _onGameOver() {
+  _onGameOver(result) {
     this.state = 'gameover';
+    UI.setEnemyOverlays([]);
+
+    const box = document.getElementById('gameover-infinite');
+    if (box) {
+      box.classList.toggle('hidden', !result);
+      if (result) {
+        document.getElementById('gameover-time').textContent =
+          `Você sobreviveu ${window.Progression.formatTime(result.ms)}`;
+        document.getElementById('gameover-rank').textContent =
+          result.rank ? `Nova marca: #${result.rank} no ranking!` : '';
+        UI.renderLeaderboard(document.getElementById('gameover-leaderboard'), result.rank);
+      }
+    }
     UI.showScreen('gameover-screen');
   }
 
   _onVictory() {
     this.state = 'victory';
+    UI.setEnemyOverlays([]);
     this.assetLoader.playSfx('victory');
-    const isLast = this.nightIndex >= window.NIGHTS_CONFIG.length - 1;
-    document.getElementById('victory-title').textContent = isLast
-      ? 'Você sobreviveu a todas as noites!'
-      : `${window.NIGHTS_CONFIG[this.nightIndex].label} concluída — são 6 da manhã!`;
-    document.getElementById('btn-next-night').classList.toggle('hidden', isLast);
+
+    const isStory = this.mode === 'story';
+    const isLast = isStory && this.nightIndex >= window.NIGHTS_CONFIG.length - 1;
+    let title;
+
+    if (isStory) {
+      title = isLast
+        ? 'Você sobreviveu a todas as noites!'
+        : `${window.NIGHTS_CONFIG[this.nightIndex].label} concluída — são 6 da manhã!`;
+      if (isLast && window.Progression.unlock()) {
+        title += ' Custom Night e Modo Infinito liberados!';
+      }
+      if (isLast && window.refreshMenu) window.refreshMenu();
+    } else {
+      title = 'Custom Night concluída — são 6 da manhã!';
+    }
+
+    document.getElementById('victory-title').textContent = title;
+    document.getElementById('btn-next-night').classList.toggle('hidden', !isStory || isLast);
     UI.showScreen('victory-screen');
   }
 
@@ -161,7 +232,6 @@ class Game {
     );
   }
 
-  // -----------------------------------------------------------------
   loop(now) {
     if (this.state !== 'playing') return;
 
@@ -169,22 +239,15 @@ class Game {
     this.lastFrameTime = now;
     this.elapsedNightMs += deltaMs;
 
-    // Pan suave (lerp) em direção à posição do mouse.
-    this.cameraOffsetX += (this.targetOffsetX - this.cameraOffsetX) * this.constants.MOUSE_PAN_SMOOTHING;
+    this.cameraOffsetX += (this.targetOffsetX - this.cameraOffsetX) * this.constants.VIEW_SMOOTHING;
 
-    const night = window.NIGHTS_CONFIG[this.nightIndex];
+    const night = this._currentNight();
 
-    // 1) Mecânica de lockNode (Freddy/Câm 2) — checada a cada frame.
     const lockedJumpscare = this.enemies.updateLocks(deltaMs, this.doors, this.cameras);
-    if (lockedJumpscare) {
-      this._triggerJumpscare(lockedJumpscare);
-      return;
-    }
+    if (lockedJumpscare) { this._triggerJumpscare(lockedJumpscare); return; }
 
-    // 2) Energia
     this.power.tick(deltaMs / 1000, Object.values(this.doors), this.cameras.isOpen, night.powerDrainMultiplier);
 
-    // 3) IA — movimentação em ticks discretos
     this.aiTickAccumulator += deltaMs;
     while (this.aiTickAccumulator >= this.constants.AI_TICK_INTERVAL_MS) {
       this.aiTickAccumulator -= this.constants.AI_TICK_INTERVAL_MS;
@@ -196,33 +259,29 @@ class Game {
         tickIntervalMs: this.constants.AI_TICK_INTERVAL_MS,
         assetLoader: this.assetLoader,
       });
-      if (jumpscaredBy) {
-        this._triggerJumpscare(jumpscaredBy);
-        return;
-      }
+      if (jumpscaredBy) { this._triggerJumpscare(jumpscaredBy); return; }
     }
 
-    // 4) Relógio / vitória
-    if (this.elapsedNightMs >= this.constants.NIGHT_DURATION_MS) {
-      this._onVictory();
-      return;
+    if (this.mode !== 'infinite' && this.elapsedNightMs >= this.constants.NIGHT_DURATION_MS) {
+      this._onVictory(); return;
     }
-    const hourFloat = (this.elapsedNightMs / this.constants.NIGHT_DURATION_MS) * this.constants.HOURS_PER_NIGHT;
 
-    // 5) Desenho: cena em baixa resolução -> upscale pixelado + estática
     this.bufferCtx.clearRect(0, 0, this.buffer.width, this.buffer.height);
-    if (this.cameras.isOpen) {
-      UI.renderCameraMonitor(this.bufferCtx, this.buffer, this.assetLoader, this);
-    } else {
-      UI.renderOffice(this.bufferCtx, this.buffer, this.assetLoader, this);
-    }
+    const overlays = this.cameras.isOpen
+      ? UI.renderCameraMonitor(this.bufferCtx, this.buffer, this.assetLoader, this)
+      : UI.renderOffice(this.bufferCtx, this.buffer, this.assetLoader, this);
     UI.drawStaticNoise(this.bufferCtx, this.buffer.width, this.buffer.height, this.constants.STATIC_NOISE_DENSITY);
     this._blitBuffer();
+    UI.setEnemyOverlays(overlays);
+
+    const clockLabel = this.mode === 'infinite'
+      ? window.Progression.formatTime(this.elapsedNightMs)
+      : this._formatClock((this.elapsedNightMs / this.constants.NIGHT_DURATION_MS) * this.constants.HOURS_PER_NIGHT);
 
     UI.updateHud({
       powerPct: this.power.percentage,
       powerLow: this.power.isLow(),
-      clockLabel: this._formatClock(hourFloat),
+      clockLabel,
       nightLabel: night.label,
     });
 
@@ -231,8 +290,7 @@ class Game {
 
   _formatClock(hourFloat) {
     const h = Math.floor(hourFloat);
-    const displayHour = h === 0 ? 12 : h;
-    return `${displayHour}:00 AM`;
+    return `${h === 0 ? 12 : h}:00 AM`;
   }
 }
 
