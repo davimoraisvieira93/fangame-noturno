@@ -9,34 +9,32 @@
 <body>
   <div id="game-container">
     <canvas id="game-canvas"></canvas>
+    <!-- Camada DOM dos animatronics (PNG/GIF em tela cheia) -->
+    <div id="enemy-layer"></div>
 
-    <!-- HUD: energia, relógio, noite atual -->
+    <!-- HUD -->
     <div id="hud" class="hidden">
-      <div id="hud-power">
-        🔋 <span id="hud-power-value">100%</span>
-      </div>
-      <div id="hud-clock">
-        🕐 <span id="hud-clock-value">12:00 AM</span>
-      </div>
-      <div id="hud-night">
-        <span id="hud-night-value">Noite 1</span>
-      </div>
+      <div id="hud-power">🔋 <span id="hud-power-value">100%</span></div>
+      <div id="hud-clock">🕐 <span id="hud-clock-value">12:00 AM</span></div>
+      <div id="hud-night"><span id="hud-night-value">Noite 1</span></div>
     </div>
 
-    <!-- Controles do escritório: portas, luzes, botão de câmeras -->
+    <!-- Controles do escritório -->
     <div id="office-controls" class="hidden">
-      <div class="door-panel" data-door="esquerda">
-        <span class="door-panel-label">Porta Esquerda</span>
+      <button id="nav-left"  class="nav-btn nav-left"  data-action="turn" data-dir="-1" aria-label="Virar à esquerda">◀</button>
+      <button id="nav-right" class="nav-btn nav-right" data-action="turn" data-dir="1"  aria-label="Virar à direita">▶</button>
+
+      <!-- só aparece olhando pro Centro (controlado por UI.syncControls) -->
+      <button id="btn-open-monitor" class="monitor-btn hidden">📺 Câmeras</button>
+
+      <!-- só aparece olhando pra respectiva porta. O texto "PORTA ..." agora é desenhado no canvas -->
+      <div class="door-panel hidden" data-door="esquerda">
         <button data-action="toggle-light" data-door="esquerda">💡 Luz</button>
-        <button data-action="toggle-door" data-door="esquerda">🚪 Fechar</button>
+        <button data-action="toggle-door"  data-door="esquerda">🚪 Fechar</button>
       </div>
-
-      <button id="btn-open-monitor" class="monitor-btn">📺 Câmeras</button>
-
-      <div class="door-panel" data-door="direita">
-        <span class="door-panel-label">Porta Direita</span>
+      <div class="door-panel hidden" data-door="direita">
         <button data-action="toggle-light" data-door="direita">💡 Luz</button>
-        <button data-action="toggle-door" data-door="direita">🚪 Fechar</button>
+        <button data-action="toggle-door"  data-door="direita">🚪 Fechar</button>
       </div>
     </div>
 
@@ -46,10 +44,7 @@
       <button id="btn-close-monitor">✕ Fechar Monitor</button>
     </div>
 
-    <!-- Tela de carregamento -->
-    <div id="loading-screen" class="screen">
-      <h1>Carregando…</h1>
-    </div>
+    <div id="loading-screen" class="screen"><h1>Carregando…</h1></div>
 
     <!-- Menu principal -->
     <div id="menu-screen" class="screen hidden">
@@ -60,18 +55,46 @@
         família e pets.
       </p>
       <button id="btn-start">Começar Noite 1</button>
+      <button id="btn-custom"      class="hidden">Custom Night</button>
+      <button id="btn-infinite"    class="hidden">Modo Infinito</button>
+      <button id="btn-leaderboard" class="hidden">🏆 Ranking</button>
+    </div>
+
+    <!-- Custom Night -->
+    <div id="custom-screen" class="screen hidden">
+      <h2>Custom Night</h2>
+      <div id="custom-levels"></div>
+      <div class="screen-buttons">
+        <button id="btn-custom-start">Começar</button>
+        <button data-action="back-to-menu">Voltar</button>
+      </div>
+    </div>
+
+    <!-- Ranking do Modo Infinito -->
+    <div id="leaderboard-screen" class="screen hidden">
+      <h2>Melhores tempos — Modo Infinito</h2>
+      <ol id="menu-leaderboard-list" class="leaderboard"></ol>
+      <div class="screen-buttons">
+        <button id="btn-clear-leaderboard">Limpar</button>
+        <button data-action="back-to-menu">Voltar</button>
+      </div>
     </div>
 
     <!-- Game over -->
     <div id="gameover-screen" class="screen hidden">
       <h1>Você foi pego.</h1>
+      <div id="gameover-infinite" class="hidden">
+        <p id="gameover-time"></p>
+        <p id="gameover-rank"></p>
+        <ol id="gameover-leaderboard" class="leaderboard"></ol>
+      </div>
       <div class="screen-buttons">
         <button id="btn-retry">Tentar Novamente</button>
         <button id="btn-menu-gameover">Menu</button>
       </div>
     </div>
 
-    <!-- Vitória / fim de noite -->
+    <!-- Vitória -->
     <div id="victory-screen" class="screen hidden">
       <h1 id="victory-title">Noite concluída!</h1>
       <div class="screen-buttons">
@@ -81,8 +104,9 @@
     </div>
   </div>
 
-  <!-- Ordem importa: config primeiro, main.js por último. -->
+  <!-- Ordem importa: config primeiro, main.js e menuExtras.js por último -->
   <script src="js/config.js"></script>
+  <script src="js/progression.js"></script>
   <script src="js/assetLoader.js"></script>
   <script src="js/doors.js"></script>
   <script src="js/power.js"></script>
@@ -91,5 +115,6 @@
   <script src="js/ui.js"></script>
   <script src="js/game.js"></script>
   <script src="js/main.js"></script>
+  <script src="js/menuExtras.js"></script>
 </body>
 </html>
