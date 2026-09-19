@@ -1,100 +1,117 @@
-/**
- * assetLoader.js
- * ---------------------------------------------------------------------------
- * Responsável por carregar todas as imagens/sons listados em config.js.
- *
- * Ponto-chave da modularidade: se um arquivo de imagem ainda não existe
- * (por exemplo, você ainda não tirou a foto da "Câm. 1"), o loader NÃO
- * trava o jogo. Ele marca aquele asset como "placeholder" e o desenho.js
- * (ui.js) desenha um retângulo colorido com o nome do asset escrito nele.
- *
- * Assim o jogo é 100% jogável desde o primeiro `git clone`, e cada imagem
- * some do modo "placeholder" automaticamente assim que você adiciona o
- * arquivo real com o mesmo nome/caminho.
- * ---------------------------------------------------------------------------
- */
+const AssetLoader = {
+  images: {},
+  audio: {},
 
-class AssetLoader {
-  constructor() {
-    this.images = {}; // chave "grupo.subchave" -> HTMLImageElement | null
-    this.placeholders = new Set(); // quais chaves caíram no fallback
-    this.audio = {}; // chave -> HTMLAudioElement (sempre existe, mesmo sem arquivo)
-  }
+  loadAll(onProgress, onComplete) {
+    let total = 0;
+    let loaded = 0;
+    let finished = false;
 
-  /**
-   * Percorre o objeto ASSETS.images recursivamente e tenta carregar cada
-   * caminho. Retorna uma Promise que resolve quando TODAS as tentativas
-   * terminarem (com sucesso ou fallback — nunca rejeita).
-   */
-  async loadAll(assets) {
-    const imageJobs = [];
-    this._collectImageJobs(assets.images, [], imageJobs);
-    await Promise.all(imageJobs.map((job) => this._loadImage(job.key, job.path)));
-
-    // Áudio: apenas instanciamos o <audio>; se o arquivo não existir, o
-    // navegador vai disparar erro só quando tentarmos dar play, e o
-    // helper playSfx() abaixo engole esse erro silenciosamente.
-    Object.entries(assets.audio).forEach(([key, path]) => {
-      const el = new Audio(path);
-      el.preload = 'auto';
-      this.audio[key] = el;
-    });
-  }
-
-  _collectImageJobs(node, pathParts, out) {
-    Object.entries(node).forEach(([key, value]) => {
-      if (typeof value === 'string') {
-        out.push({ key: [...pathParts, key].join('.'), path: value });
-      } else if (value && typeof value === 'object') {
-        this._collectImageJobs(value, [...pathParts, key], out);
+    const checkDone = () => {
+      if (finished) return;
+      loaded++;
+      if (onProgress) onProgress(loaded, total);
+      if (loaded >= total) {
+        finished = true;
+        if (onComplete) onComplete();
       }
-    });
-  }
+    };
 
-  _loadImage(key, path) {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        this.images[key] = img;
-        resolve();
+    // Conta quantas imagens existem na config
+    if (window.ASSETS && window.ASSETS.images) {
+      const countImages = (obj) => {
+        for (let k in obj) {
+          if (typeof obj[k] === 'string') total++;
+          else if (typeof obj[k] === 'object' && obj[k] !== null) countImages(obj[k]);
+        }
       };
-      img.onerror = () => {
-        this.images[key] = null; // sinaliza placeholder
-        this.placeholders.add(key);
-        resolve(); // nunca falha o carregamento geral
-      };
-      img.src = path;
-    });
-  }
+      countImages(window.ASSETS.images);
+    }
 
-  /** Retorna a imagem carregada ou null se estiver em modo placeholder. */
-  getImage(key) {
-    return this.images[key] || null;
-  }
+    // Conta quantos áudios existem na config
+    if (window.ASSETS && window.ASSETS.audio) {
+      for (let k in window.ASSETS.audio) {
+        total++;
+      }
+    }
 
-  isPlaceholder(key) {
-    return this.placeholders.has(key);
-  }
+    if (total === 0) {
+      if (onComplete) onComplete();
+      return;
+    }
 
-  /** Toca um efeito sonoro sem travar o jogo caso o arquivo não exista. */
-  playSfx(key, { loop = false, volume = 1 } = {}) {
-    const base = this.audio[key];
-    if (!base) return;
-    // Clona o elemento para permitir sons sobrepostos (ex.: batidas rápidas).
-    const el = loop ? base : base.cloneNode(true);
-    el.loop = loop;
-    el.volume = volume;
-    el.play().catch(() => {
-      /* arquivo ausente ou navegador bloqueou autoplay — ignorar */
-    });
-    return el;
-  }
+    // Carrega imagens com segurança (se falhar 404, avança do mesmo jeito)
+    const loadImagesRecursive = (obj, targetObj) => {
+      for (let k in obj) {
+        if (typeof obj[k] === 'string') {
+          const img = new Image();
+          targetObj[k] = img;
+          
+          let resolved = false;
+          const resolveOnce = () => {
+            if (!resolved) {
+              resolved = true;
+              checkDone();
+            }
+          };
 
-  stopSfx(el) {
-    if (!el) return;
-    el.pause();
-    el.currentTime = 0;
+          img.onload = resolveOnce;
+          img.onerror = resolveOnce; // Se der 404, pula e não trava o jogo
+          img.src = obj[k];
+
+          // Segurança extra: se demorar mais de 1.5s, força continuar
+          setTimeout(resolveOnce, 1500);
+
+        } else if (typeof obj[k] === 'object' && obj[k] !== null) {
+          targetObj[k] = {};
+          loadImagesRecursive(obj[k], targetObj[k]);
+        }
+      }
+    };
+
+    if (window.ASSETS && window.ASSETS.images) {
+      loadImagesRecursive(window.ASSETS.images, this.images);
+    }
+
+    // Carrega áudios com segurança
+    if (window.ASSETS && window.ASSETS.audio) {
+      for (let k in window.ASSETS.audio) {
+        const snd = new Audio();
+        this.audio[k] = snd;
+
+        let resolved = false;
+        const resolveOnce = () => {
+          if (!resolved) {
+            resolved = true;
+            checkDone();
+          }
+        };
+
+        snd.oncanplaythrough = resolveOnce;
+        snd.onerror = resolveOnce; // Se falhar o som, pula e não trava
+        snd.src = window.ASSETS.audio[k];
+
+        setTimeout(resolveOnce, 1500);
+      }
+    }
+  },
+
+  getImage(keyPath) {
+    const parts = keyPath.split('.');
+    let curr = this.images;
+    for (let i = 0; i < parts.length; i++) {
+      if (curr && curr[parts[i]] !== undefined) {
+        curr = curr[parts[i]];
+      } else {
+        return null;
+      }
+    }
+    return curr instanceof HTMLImageElement ? curr : null;
+  },
+
+  getAudio(key) {
+    return this.audio[key] || null;
   }
-}
+};
 
 window.AssetLoader = AssetLoader;
