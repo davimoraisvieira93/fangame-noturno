@@ -13,6 +13,12 @@
   const loader = new AssetLoader();
   let game = null;
 
+  // === MÚSICA DO MENU (ADICIONADO) ===
+  const beatboxMusic = new Audio('assets/audio/sfx/beatbox.mp3');
+  beatboxMusic.loop = true; // Faz a música repetir infinitamente
+  beatboxMusic.volume = 0.6; // Deixa o volume em 60% para não estourar o ouvido
+  // ===================================
+
   const loadingScreen = document.getElementById('loading-screen');
   const menuScreen = document.getElementById('menu-screen');
 
@@ -21,6 +27,9 @@
     UI.hideAllScreens();
     UI.showScreen('menu-screen');
     loadingScreen.classList.add('hidden');
+
+    // Toca a música assim que o menu carregar (pode precisar de 1 clique na tela antes)
+    beatboxMusic.play().catch(() => console.log("Aguardando clique para tocar áudio"));
 
     wireMenuButtons();
     wireOfficeControls();
@@ -31,6 +40,10 @@
 
   function wireMenuButtons() {
     document.getElementById('btn-start').addEventListener('click', () => {
+      // Para o beatbox na hora que o jogo começa
+      beatboxMusic.pause();
+      beatboxMusic.currentTime = 0; 
+      
       game.startNight(0);
     });
   }
@@ -58,17 +71,19 @@
       game.startNight(game.nightIndex);
     });
     document.getElementById('btn-menu-gameover').addEventListener('click', () => {
+      beatboxMusic.play(); // Volta a tocar quando vai pro menu
       UI.showScreen('menu-screen');
     });
     document.getElementById('btn-next-night').addEventListener('click', () => {
       game.startNight(game.nightIndex + 1);
     });
     document.getElementById('btn-menu-victory').addEventListener('click', () => {
+      beatboxMusic.play(); // Volta a tocar quando vai pro menu
       UI.showScreen('menu-screen');
     });
   }
 
-  // Atalhos de teclado opcionais (comente esta função se não quiser usá-los).
+  // Atalhos de teclado opcionais
   function wireKeyboardShortcuts() {
     window.addEventListener('keydown', (e) => {
       if (!game || game.state !== 'playing') return;
