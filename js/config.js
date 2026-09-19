@@ -58,6 +58,7 @@ const ASSETS = {
     jumpscare: 'assets/audio/sfx/jumpscare.mp3',
     victory: 'assets/audio/sfx/victory_6am.mp3',
     risada: 'assets/audio/sfx/risada.mp3',
+    menuBeatbox; 'assets/audio/sfx/beatbox.mp3
   },
 };
 
