@@ -36,14 +36,22 @@ const UI = {
     ctx.fillRect(0, 0, w, h);
   },
 
-  drawStaticNoise(ctx, w, h, density) {
+ drawStaticNoise(ctx, w, h, density) {
     ctx.save();
     for (let i = 0; i < density; i += 1) {
       const x = Math.random() * w, y = Math.random() * h;
       const rw = Math.random() * 3 + 1, rh = Math.random() * 1.5 + 0.5;
-      ctx.fillStyle = rgba(255,255,255,${(Math.random() * 0.12).toFixed(3)});
+      const alpha = (Math.random() * 0.12).toFixed(3);
+      ctx.fillStyle = 'rgba(255,255,255,' + alpha + ')';
       ctx.fillRect(x, y, rw, rh);
     }
+    if (Math.random() < 0.05) {
+      const ly = Math.random() * h;
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(0, ly, w, 2);
+    }
+    ctx.restore();
+  },
     if (Math.random() < 0.05) {
       const ly = Math.random() * h;
       ctx.fillStyle = 'rgba(255,255,255,0.08)';
