@@ -49,12 +49,18 @@
     wireKeyboardShortcuts();
   });
 
-  function wireMenuButtons() {
+function wireMenuButtons() {
     document.getElementById('btn-start').addEventListener('click', () => {
-      // Para o beatbox com força total, zera o tempo e muta para não vazar na Noite 1
-      beatboxMusic.pause();
-      beatboxMusic.currentTime = 0; 
-      beatboxMusic.muted = true;
+      // Força o corte absoluto do som para o beatbox não vazar para a Noite 1
+      try {
+        beatboxMusic.pause();
+        beatboxMusic.currentTime = 0;
+        beatboxMusic.muted = true;
+        beatboxMusic.volume = 0;
+        beatboxMusic.src = ""; // Desliga o arquivo do player
+      } catch (e) {
+        console.log("Erro ao pausar:", e);
+      }
       
       game.startNight(0);
     });
